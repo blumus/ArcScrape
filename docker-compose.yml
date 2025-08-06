@@ -10,6 +10,8 @@ services:
     volumes:
       - ./backend:/app # Mount your backend code into the container
       - dev_data:/root # Persistent storage for tools/configs in the dev container
+      - ~/.aws/credentials_read_only:/root/.aws/credentials:ro # Mount AWS credentials for the dev container
+      - ~/.aws/config:/root/.aws/config:ro # Mount AWS config for the dev container
     ports:
       - "8000:8000" # Expose FastAPI port (adjust if your app uses a different port)
     environment:

@@ -3,3 +3,4 @@ fastapi
 uvicorn[standard]
 pymongo # For MongoDB interaction
 python-dotenv # For loading environment variables (optional but good practice)
+boto3 # For AWS S3 interaction
