@@ -1,0 +1,32 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  dev_env:
+    build:
+      context: ./backend # Build from the backend directory
+      dockerfile: Dockerfile # Use the Dockerfile inside backend/
+    container_name: cloudculate_dev_env
+    volumes:
+      - ./backend:/app # Mount your backend code into the container
+      - dev_data:/root # Persistent storage for tools/configs in the dev container
+    ports:
+      - "8000:8000" # Expose FastAPI port (adjust if your app uses a different port)
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/cloudculate # MongoDB connection string
+    depends_on:
+      - mongodb
+    # Optional: Command to keep the container running for VS Code to attach
+    command: tail -f /dev/null
+
+  mongodb:
+    image: mongo:latest # Use the official MongoDB image
+    container_name: cloudculate_mongodb
+    ports:
+      - "27017:27017" # Expose MongoDB default port
+    volumes:
+      - mongo_data:/data/db # Persistent storage for MongoDB data
+
+volumes:
+  mongo_data: # Volume for MongoDB data persistence
+  dev_data: # Volume for dev environment tools/configs persistence

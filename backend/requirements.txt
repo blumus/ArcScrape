@@ -1,0 +1,5 @@
+# backend/requirements.txt
+fastapi
+uvicorn[standard]
+pymongo # For MongoDB interaction
+python-dotenv # For loading environment variables (optional but good practice)
