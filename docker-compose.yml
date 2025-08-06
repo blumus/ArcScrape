@@ -4,11 +4,11 @@ version: '3.8'
 services:
   dev_env:
     build:
-      context: ./backend # Build from the backend directory
-      dockerfile: Dockerfile # Use the Dockerfile inside backend/
+      context: . # Build context is the current directory
+      dockerfile: backend/Dockerfile # Specify the Dockerfile inside the backend directory
     container_name: cloudculate_dev_env
     volumes:
-      - ./backend:/app # Mount your backend code into the container
+      - .:/app # Mount your backend code into the container
       - dev_data:/root # Persistent storage for tools/configs in the dev container
       - ~/.aws/credentials_read_only:/root/.aws/credentials:ro # Mount AWS credentials for the dev container
       - ~/.aws/config:/root/.aws/config:ro # Mount AWS config for the dev container
