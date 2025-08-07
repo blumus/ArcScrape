@@ -363,6 +363,97 @@ sudo systemctl start scraper
 docker build -t aws-scraper .
 docker run -d -p 8000:8000 -v ./aws-inventory:/app/aws-inventory aws-scraper
 ```
+// ...existing code...
+
+## Testing
+
+This project uses **pytest** as the primary testing framework for comprehensive test coverage of the AWS scraper functionality.
+
+### Test Structure
+
+```
+backend/tests/
+├── __init__.py
+├── test_aws_scraper.py      # Core scraper logic tests
+├── test_scrape_cli.py       # CLI interface tests (currently skipped)
+├── test_scraper_api.py      # FastAPI endpoint tests
+└── test_hello_world.py      # Basic functionality tests
+```
+
+### Running Tests
+
+#### Basic Test Execution
+```bash
+# Run all tests
+cd backend
+python -m pytest
+
+# Run tests with verbose output
+python -m pytest -v
+
+# Run specific test file
+python -m pytest tests/test_scraper_api.py
+
+# Run specific test function
+python -m pytest tests/test_scraper_api.py::test_list_scrapes
+```
+
+#### Test Coverage
+```bash
+# Run tests with coverage report
+python -m pytest --cov=. --cov-report=term-missing
+
+# Generate HTML coverage report
+python -m pytest --cov=. --cov-report=html
+# Open coverage report in browser
+"$BROWSER" htmlcov/index.html
+```
+
+#### Test Categories
+```bash
+# Run only fast tests (exclude slow AWS integration tests)
+python -m pytest -m "not slow"
+
+# Run only API tests
+python -m pytest tests/test_scraper_api.py
+
+# Run tests matching pattern
+python -m pytest -k "api"
+```
+
+### Test Configuration
+
+The project includes `pytest.ini` configuration for consistent test execution:
+- Automatic test discovery
+- Coverage reporting setup
+- Custom markers for test categorization
+- Output formatting preferences
+
+### Development Testing
+
+For development in the Debian dev container:
+
+```bash
+# Install test dependencies
+pip install -r requirements-dev.txt
+
+# Run tests with file watching (requires pytest-watch)
+ptw
+
+# Run tests in parallel (requires pytest-xdist)
+python -m pytest -n auto
+```
+
+### Test Categories
+
+- **Unit Tests**: Test individual functions and classes
+- **Integration Tests**: Test component interactions
+- **API Tests**: Test FastAPI endpoints using httpx
+- **CLI Tests**: Test command-line interface (currently skipped for AWS functionality)
+
+### Continuous Integration
+
+Tests are designed to run in CI/CD pipelines with proper mocking of AWS services to avoid actual AWS API calls during
 
 ## 📄 License
 

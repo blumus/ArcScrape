@@ -16,10 +16,10 @@ RUN apt update && apt install -y \
      && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container
-COPY backend/requirements.txt .
+COPY backend/requirements.txt backend/requirements-dev.txt ./
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 RUN pip install aws-list-all
 
 # Copy the rest of your application code (this will be mounted by docker-compose,

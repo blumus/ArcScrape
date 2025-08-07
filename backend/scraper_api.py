@@ -18,6 +18,7 @@ from pathlib import Path
 
 from aws_scraper import AWSArchitectureScraper
 
+
 # Initialize FastAPI app
 app = FastAPI(
     title="AWS Architecture Scraper API",
@@ -238,18 +239,27 @@ async def dashboard():
 async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks):
     """Start a new AWS architecture scrape"""
     try:
-        # Start scrape in background
-        result = scraper.scrape_aws_architecture(
-            services=request.services,
-            regions=request.regions,
-            profile=request.profile
-        )
-        
+        # Generate a new scrape_id and start_time
+        from uuid import uuid4
+        scrape_id = str(uuid4())
+        from datetime import timezone
+        start_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        # Schedule the scrape in the background
+        def run_scrape():
+            scraper.scrape_aws_architecture(
+                services=request.services,
+                regions=request.regions,
+                profile=request.profile
+            )
+
+        background_tasks.add_task(run_scrape)
+
         return ScrapeResponse(
-            scrape_id=result["scrape_id"],
-            start_time=result["start_time"],
-            success=result["success"],
-            message=f"Scrape {'completed' if result['success'] else 'failed'}"
+            scrape_id=scrape_id,
+            start_time=start_time,
+            success=True,
+            message="Scrape started in background"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start scrape: {str(e)}")
