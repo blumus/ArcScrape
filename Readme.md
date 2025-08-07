@@ -1,6 +1,17 @@
 # CloudCulate
 
-A FastAPI-based application with MongoDB backend, designed for development using Docker containers and VS Code dev containers.
+A comprehensive cloud architecture parsing and scraping application with FastAPI backend and MongoDB database. Features an AWS architecture scraper that discovers and analyzes AWS infrastructure using `aws-list-all`.
+
+## 🎯 Core Features
+
+- **AWS Architecture Scraper**: Discover and analyze AWS infrastructure across services and regions
+- **REST API & Web Dashboard**: Manage scraping operations through CLI, API, or web interface  
+- **Organized Data Storage**: Timestamped scrapes with success/failure tracking and comprehensive logging
+- **FastAPI Backend**: High-performance API with automatic documentation
+- **MongoDB Integration**: Scalable database for inventory data storage
+- **Docker Development**: Containerized development environment with VS Code integration
+
+For detailed scraper documentation, see [`backend/SCRAPER_README.md`](backend/SCRAPER_README.md).
 
 ## Project Structure
 
@@ -22,6 +33,7 @@ A FastAPI-based application with MongoDB backend, designed for development using
 
 - [Docker](https://www.docker.com/get-started) and Docker Compose
 - [Visual Studio Code](https://code.visualstudio.com/) with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- AWS credentials configured (for scraper functionality)
 
 ### Development Setup
 
@@ -41,6 +53,25 @@ A FastAPI-based application with MongoDB backend, designed for development using
    docker-compose up -d
    ```
 
+### AWS Scraper Quick Start
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Run basic scrape (EC2 and S3 in specified regions)
+python scrape_cli.py --service ec2 --service s3 --region eu-west-1 --region us-east-1
+
+# Start web dashboard
+python scraper_api.py
+# Access at http://localhost:8000
+
+# List all scrapes
+python scrape_cli.py --list
+```
+
+📖 **Full scraper documentation:** [`backend/SCRAPER_README.md`](backend/SCRAPER_README.md)
+
 ## Services
 
 ### Backend (FastAPI)
@@ -48,6 +79,13 @@ A FastAPI-based application with MongoDB backend, designed for development using
 - **Framework:** FastAPI with Uvicorn
 - **Database:** MongoDB integration via PyMongo
 - **Development:** Hot reload enabled
+- **AWS Scraper:** Integrated scraping system with web dashboard and REST API
+
+### AWS Scraper Features
+- **CLI Interface:** `python scrape_cli.py --service ec2 --service s3 --region eu-west-1`
+- **Web Dashboard:** Interactive scrape management at http://localhost:8000
+- **REST API:** Programmatic scrape control and file access
+- **Data Organization:** Timestamped scrapes with success/failure tracking
 
 ### MongoDB
 - **Port:** 27017
