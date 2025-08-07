@@ -4,3 +4,10 @@ uvicorn[standard]
 pymongo # For MongoDB interaction
 python-dotenv # For loading environment variables (optional but good practice)
 boto3 # For AWS S3 interaction
+
+# Additional utilities
+pandas  # For data analysis (optional)
+tabulate  # For pretty table printing
+
+# NOTE pkg_resources is used by setuptools, is being deprecated
+setuptools # For packaging and distribution 

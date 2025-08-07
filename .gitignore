@@ -1,2 +1,3 @@
 *.pyc
 backend/config
+aws-inventory/

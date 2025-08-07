@@ -20,6 +20,7 @@ COPY backend/requirements.txt .
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install aws-list-all
 
 # Copy the rest of your application code (this will be mounted by docker-compose,
 # but it's good practice for standalone builds or if not using remote containers)
