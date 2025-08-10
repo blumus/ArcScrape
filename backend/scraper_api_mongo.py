@@ -9,6 +9,7 @@ import logging
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, status
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.encoders import jsonable_encoder
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 from aws_scraper import AWSArchitectureScraper
 import uvicorn
+import asyncio
 
 # Custom JSON encoder for MongoDB ObjectId
 class CustomJSONEncoder(json.JSONEncoder):
@@ -44,15 +46,38 @@ def custom_jsonable_encoder(obj: Any) -> Any:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+# Global scraper instance
+scraper: Optional[AWSArchitectureScraper] = None
+
+# Lifespan event handler (replaces startup/shutdown events)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize and cleanup resources during app lifespan"""
+    global scraper
+    
+    # Startup
+    try:
+        mongo_uri = "mongodb://mongodb:27017/cloudculate"  # Could be from env var
+        scraper = AWSArchitectureScraper(mongo_uri)
+        logger.info("AWS Scraper API started with MongoDB connection")
+    except Exception as e:
+        logger.error(f"Failed to initialize scraper: {e}")
+        raise
+    
+    yield  # App runs here
+    
+    # Shutdown
+    if scraper:
+        scraper.close()
+        logger.info("AWS Scraper API shutdown complete")
+
+# Initialize FastAPI app with lifespan handler
 app = FastAPI(
     title="AWS Architecture Scraper API",
     description="MongoDB-based AWS architecture scraping and analysis API",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
-
-# Global scraper instance
-scraper: Optional[AWSArchitectureScraper] = None
 
 # Pydantic models for request/response schemas
 class ScrapeRequest(BaseModel):
@@ -87,35 +112,18 @@ class ResourceQuery(BaseModel):
     limit: int = Field(1000, ge=1, le=10000)
     offset: int = Field(0, ge=0)
 
-# Startup/shutdown events
-@app.on_event("startup")
-async def startup_event():
-    """Initialize MongoDB connection on startup"""
-    global scraper
-    try:
-        mongo_uri = "mongodb://mongodb:27017/cloudculate"  # Could be from env var
-        scraper = AWSArchitectureScraper(mongo_uri)
-        logger.info("AWS Scraper API started with MongoDB connection")
-    except Exception as e:
-        logger.error(f"Failed to initialize scraper: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up connections on shutdown"""
-    global scraper
-    if scraper:
-        scraper.close()
-        logger.info("AWS Scraper API shutdown complete")
-
-# Helper function for background scraping
+# Helper function for background scraping - make it truly async
 async def run_scrape_background(services: Optional[List[str]], regions: Optional[List[str]], profile: Optional[str]) -> Dict[str, Any]:
-    """Run scrape in background"""
+    """Run scrape in background using a thread pool to avoid blocking"""
     try:
-        result = scraper.scrape_aws_architecture(
-            services=services,
-            regions=regions,
-            profile=profile
+        # Run the synchronous scrape method in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,  # Use default thread pool
+            scraper.scrape_aws_architecture,
+            services,
+            regions,
+            profile
         )
         logger.info(f"Background scrape completed: {result['scrape_id']}")
         return result
@@ -435,25 +443,35 @@ async def health_check():
 # Scrape Management Endpoints
 
 @app.post("/api/scrapes", response_model=ScrapeResponse)
-async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks):
-    """Start a new AWS architecture scrape"""
+async def scrape_async(request: ScrapeRequest, background_tasks: BackgroundTasks):
+    """Start a new AWS architecture scrape (asynchronous - returns immediately)"""
     try:
-        logger.info(f"Starting new scrape with services: {request.services}, regions: {request.regions}")
+        logger.info(f"Starting asynchronous scrape with services: {request.services}, regions: {request.regions}")
         
-        # Start scrape in background
-        result = await run_scrape_background(request.services, request.regions, request.profile)
+        # Generate scrape ID immediately
+        scrape_id = f"scrape_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        
+        # Start scrape in background - this should now be truly non-blocking
+        background_tasks.add_task(
+            run_scrape_background, 
+            request.services, 
+            request.regions, 
+            request.profile
+        )
+        
+        logger.info(f"Background task started for scrape {scrape_id}, returning immediately")
         
         return ScrapeResponse(
-            scrape_id=result["scrape_id"],
-            success=result["success"],
-            duration_seconds=result.get("duration_seconds"),
-            files_processed=result.get("files_processed"),
-            return_code=result.get("return_code"),
-            message="Scrape completed successfully" if result["success"] else "Scrape failed"
+            scrape_id=scrape_id,
+            success=True,
+            duration_seconds=None,
+            files_processed=None,
+            return_code=None,
+            message=f"Scrape {scrape_id} started successfully - check status with GET /api/scrapes/{scrape_id}"
         )
         
     except Exception as e:
-        logger.error(f"Failed to start scrape: {e}")
+        logger.error(f"Failed to start asynchronous scrape: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start scrape: {str(e)}"
@@ -926,8 +944,8 @@ async def test_mongo_connection():
             }
         )
 
-# Complete the remaining endpoints using the same pattern
-# Add convenience function to run the server
+# Fix the reload warning by using the module import string
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    # Use import string instead of app object to enable reload
+    uvicorn.run("scraper_api_mongo:app", host="0.0.0.0", port=8000, reload=True)

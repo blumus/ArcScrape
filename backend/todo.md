@@ -15,10 +15,10 @@
 ## Mongo version improvements
 - [ ] get rid of mypy and format error
 - [ ] have log put file name where log is located
-- [ ] Check that start API calls aren't blocked
+- [x] ~~Check that start scrape API calls aren't blocked~~
 - [ ] api: when mongo connection at start it hangs
 - [ ] all imports at beginning of file
-- [ ] make nice start page
+- [x] ~~make nice start page~~
 - [ ] unit tests
 
 ## Future Tasks
