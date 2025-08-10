@@ -18,6 +18,8 @@
 - [ ] Check that start API calls aren't blocked
 - [ ] api: when mongo connection at start it hangs
 - [ ] all imports at beginning of file
+- [ ] make nice start page
+- [ ] unit tests
 
 ## Future Tasks
 - [ ] Use `aws-list-all introspect list-operations` to build and save services operations

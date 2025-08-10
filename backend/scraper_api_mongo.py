@@ -10,7 +10,7 @@ import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from bson import ObjectId
@@ -126,19 +126,289 @@ async def run_scrape_background(services: Optional[List[str]], regions: Optional
 # Health check endpoint
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
-    return {
-        "name": "AWS Architecture Scraper API",
-        "version": "2.0.0",
-        "description": "MongoDB-based AWS architecture scraping and analysis API",
-        "endpoints": {
-            "health": "/health",
-            "docs": "/docs",
-            "openapi": "/openapi.json",
-            "scrapes": "/api/scrapes",
-            "stats": "/api/stats"
-        }
-    }
+    """Landing page with API information"""
+    try:
+        stats = scraper.get_stats()
+        total_scrapes = stats.get("total_scrapes", 0)
+        total_resources = stats.get("total_resources", 0)
+        services_count = len(stats.get("services_discovered", []))
+    except:
+        total_scrapes = 0
+        total_resources = 0
+        services_count = 0
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AWS Architecture Scraper API</title>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                line-height: 1.6;
+                margin: 0;
+                padding: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }}
+            .container {{
+                background: white;
+                border-radius: 15px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                max-width: 800px;
+                margin: 20px;
+                overflow: hidden;
+            }}
+            .header {{
+                background: #2c3e50;
+                color: white;
+                padding: 2rem;
+                text-align: center;
+            }}
+            .header h1 {{
+                margin: 0;
+                font-size: 2.5em;
+                font-weight: 300;
+            }}
+            .header p {{
+                margin: 0.5rem 0 0 0;
+                opacity: 0.9;
+                font-size: 1.1em;
+            }}
+            .content {{
+                padding: 2rem;
+            }}
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+                margin: 2rem 0;
+            }}
+            .stat-card {{
+                background: #f8f9fa;
+                padding: 1.5rem;
+                border-radius: 10px;
+                text-align: center;
+                border: 2px solid transparent;
+                transition: all 0.3s ease;
+            }}
+            .stat-card:hover {{
+                border-color: #667eea;
+                transform: translateY(-5px);
+            }}
+            .stat-number {{
+                font-size: 2.5em;
+                font-weight: bold;
+                color: #2c3e50;
+                margin: 0;
+            }}
+            .stat-label {{
+                color: #666;
+                font-size: 0.9em;
+                margin: 0.5rem 0 0 0;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            .buttons {{
+                display: flex;
+                gap: 1rem;
+                margin: 2rem 0;
+                justify-content: center;
+                flex-wrap: wrap;
+            }}
+            .btn {{
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: 600;
+                transition: all 0.3s ease;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }}
+            .btn-primary {{
+                background: #667eea;
+                color: white;
+            }}
+            .btn-primary:hover {{
+                background: #5a67d8;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            }}
+            .btn-secondary {{
+                background: #e2e8f0;
+                color: #2c3e50;
+            }}
+            .btn-secondary:hover {{
+                background: #cbd5e0;
+                transform: translateY(-2px);
+            }}
+            .endpoints {{
+                background: #f8f9fa;
+                border-radius: 10px;
+                padding: 1.5rem;
+                margin: 2rem 0;
+            }}
+            .endpoint {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.75rem 0;
+                border-bottom: 1px solid #e2e8f0;
+            }}
+            .endpoint:last-child {{
+                border-bottom: none;
+            }}
+            .endpoint-method {{
+                background: #38a169;
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 0.8em;
+                font-weight: bold;
+                min-width: 60px;
+                text-align: center;
+            }}
+            .endpoint-method.post {{ background: #3182ce; }}
+            .endpoint-method.delete {{ background: #e53e3e; }}
+            .endpoint-path {{
+                font-family: 'Monaco', 'Consolas', monospace;
+                font-size: 0.9em;
+                color: #2c3e50;
+                flex-grow: 1;
+                margin: 0 1rem;
+            }}
+            .endpoint-desc {{
+                color: #666;
+                font-size: 0.85em;
+                max-width: 200px;
+                text-align: right;
+            }}
+            .status-indicator {{
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background: #38a169;
+                margin-right: 8px;
+                animation: pulse 2s infinite;
+            }}
+            @keyframes pulse {{
+                0% {{ opacity: 1; }}
+                50% {{ opacity: 0.5; }}
+                100% {{ opacity: 1; }}
+            }}
+            .footer {{
+                text-align: center;
+                padding: 1rem 2rem;
+                background: #f8f9fa;
+                color: #666;
+                font-size: 0.9em;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🏗️ AWS Architecture Scraper</h1>
+                <p><span class="status-indicator"></span>MongoDB-based AWS Infrastructure Analysis API</p>
+            </div>
+            
+            <div class="content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h2 class="stat-number">{total_scrapes}</h2>
+                        <p class="stat-label">Total Scrapes</p>
+                    </div>
+                    <div class="stat-card">
+                        <h2 class="stat-number">{total_resources}</h2>
+                        <p class="stat-label">AWS Resources</p>
+                    </div>
+                    <div class="stat-card">
+                        <h2 class="stat-number">{services_count}</h2>
+                        <p class="stat-label">AWS Services</p>
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <a href="/docs" class="btn btn-primary">📚 Interactive API Docs</a>
+                    <a href="/api/stats" class="btn btn-secondary">📊 View Statistics</a>
+                    <a href="/health" class="btn btn-secondary">💚 Health Check</a>
+                </div>
+
+                <div class="endpoints">
+                    <h3 style="margin-top: 0; color: #2c3e50;">🔗 Key API Endpoints</h3>
+                    <div class="endpoint">
+                        <span class="endpoint-method">GET</span>
+                        <code class="endpoint-path">/api/scrapes</code>
+                        <span class="endpoint-desc">List all scrapes</span>
+                    </div>
+                    <div class="endpoint">
+                        <span class="endpoint-method post">POST</span>
+                        <code class="endpoint-path">/api/scrapes</code>
+                        <span class="endpoint-desc">Start new scrape</span>
+                    </div>
+                    <div class="endpoint">
+                        <span class="endpoint-method">GET</span>
+                        <code class="endpoint-path">/api/stats/services</code>
+                        <span class="endpoint-desc">Service statistics</span>
+                    </div>
+                    <div class="endpoint">
+                        <span class="endpoint-method">GET</span>
+                        <code class="endpoint-path">/api/stats/regions</code>
+                        <span class="endpoint-desc">Regional statistics</span>
+                    </div>
+                    <div class="endpoint">
+                        <span class="endpoint-method">GET</span>
+                        <code class="endpoint-path">/api/scrapes/{{id}}/resources</code>
+                        <span class="endpoint-desc">Query resources</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Version 2.0.0 • MongoDB Backend • Real-time AWS Infrastructure Discovery</p>
+            </div>
+        </div>
+
+        <script>
+            // Add some interactivity
+            document.addEventListener('DOMContentLoaded', function() {{
+                // Animate numbers on page load
+                const numbers = document.querySelectorAll('.stat-number');
+                numbers.forEach(num => {{
+                    const finalValue = parseInt(num.textContent);
+                    let currentValue = 0;
+                    const increment = finalValue / 50;
+                    const timer = setInterval(() => {{
+                        currentValue += increment;
+                        if (currentValue >= finalValue) {{
+                            currentValue = finalValue;
+                            clearInterval(timer);
+                        }}
+                        num.textContent = Math.floor(currentValue);
+                    }}, 30);
+                }});
+
+                // Add click tracking for buttons
+                document.querySelectorAll('.btn').forEach(btn => {{
+                    btn.addEventListener('click', function(e) {{
+                        console.log('Navigating to:', this.href);
+                    }});
+                }});
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.get("/health")
 async def health_check():
