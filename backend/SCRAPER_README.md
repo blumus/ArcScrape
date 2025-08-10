@@ -1,475 +1,594 @@
-# AWS Architecture Scraper
+# AWS Architecture Scraper - MongoDB Edition
 
-A comprehensive cloud architecture parsing and scraping application that discovers and analyzes AWS infrastructure using `aws-list-all`.
+A comprehensive cloud architecture parsing and scraping application that discovers and analyzes AWS infrastructure using `aws-list-all` with MongoDB storage and real-time processing.
 
 ## 🎯 Overview
 
 Organizations spend millions on cloud infrastructure but struggle to find the best cloud architecture solutions for their use case. This application:
 
-- **Scrapes cloud architectures** using `aws-list-all`
+- **Scrapes cloud architectures** using `aws-list-all` with real-time file processing
+- **Stores data in MongoDB** for flexible querying and analysis
 - **Parses scraped content** and extracts relevant resources and data
-- **Tracks scraping operations** with success/failure monitoring
-- **Provides REST API** for managing scrapes
-- **Organizes data** with timestamps and proper directory structure
+- **Tracks scraping operations** with comprehensive metadata and success/failure monitoring
+- **Provides REST API** for managing scrapes and querying resources
+- **Offers CLI interface** for command-line operations
+- **Enables cross-scrape analysis** to track infrastructure changes over time
 
 ## 🏗️ Architecture
 
+The system uses a MongoDB-based architecture with real-time file processing:
+
 ```
-AWS Architecture Scraper
-├── CLI Interface (scrape_cli.py)
-├── Core Scraper (aws_scraper.py)
-├── REST API (scraper_api.py)
-└── Data Organization
-    ├── /aws-inventory/scrapes/     # Scraped data
-    ├── /aws-inventory/logs/        # stdout/stderr logs
-    └── /aws-inventory/status/      # success/fail markers
+aws-list-all → /tmp/scrape_id/ → File Watcher → MongoDB Collections
+                     ↓              ↓              ↓
+                Temp Files    Real-time      Structured Storage
+                             Processing      & Indexing
 ```
 
-## ✨ Features
+### Key Components:
+- **MongoDB Manager**: Handles all database operations and indexing
+- **File Watcher Service**: Monitors temp directories and processes files in real-time
+- **AWS Scraper Engine**: Orchestrates the entire scraping workflow
+- **REST API**: FastAPI-based web interface
+- **CLI Interface**: Command-line tools for direct operations
 
-### 🔍 Smart Scraping
-- **Service filtering**: Specify individual AWS services or scrape all
-- **Region filtering**: Target specific regions or scrape globally  
-- **Profile support**: Use different AWS profiles
-- **Automatic timestamping**: Each scrape gets unique timestamp-based ID
+## 📋 Prerequisites
 
-### 📁 Organized Storage
-- **Timestamped directories**: `scrape_20250806_143022_abc12345`
-- **Success/fail tracking**: Empty files indicate status
-- **Comprehensive logging**: Separate stdout/stderr capture
-- **Metadata tracking**: Full scrape details in JSON format
+### System Requirements
+- **Docker & Docker Compose** (already configured in this dev container)
+- **aws-list-all** tool (pre-installed in the container)
+- **AWS CLI** configured with appropriate permissions
 
-### 🌐 Web Dashboard
-- **Real-time status**: View all scrapes and their status
-- **Interactive interface**: Start new scrapes from browser
-- **File browsing**: Download individual scraped files
-- **Log viewing**: Access stdout/stderr logs via web
+### AWS Configuration
+Your AWS credentials are already mounted from the host system into the dev container. Verify they're working:
 
-### 📊 REST API
-- **Start scrapes**: POST to `/api/scrapes/start`
-- **List scrapes**: GET `/api/scrapes`
-- **View details**: GET `/api/scrapes/{scrape_id}`
-- **Download files**: GET `/api/scrapes/{scrape_id}/download/{filename}`
+```bash
+# Check AWS configuration
+aws sts get-caller-identity
+
+# If not configured, set up AWS credentials on your host machine
+# The container will automatically use: ~/.aws/credentials_read_only and ~/.aws/config
+```
 
 ## 🚀 Quick Start
+### 1. go to backend dir
+```bash
+cd backend
+```
 
-### 1. Prerequisites
+### 2. Test the System
+```bash
+# Run smoke tests
+python3 tests/smoke_test.py 
 
-All required tools and dependencies are pre-installed and configured in the provided Dockerfile. You only need to ensure you have valid AWS credentials and network access to AWS endpoints. For containerized deployment, Docker is recommended.
+# Test MongoDB connection and basic functionality
+python3 aws_scraper.py
 
-### 2. Basic Usage
+# Or test with CLI
+python3 scrape_cli_mongo.py stats
+```
+
+### 3. Start the API Server
+```bash
+# Start the REST API
+python3 scraper_api_mongo.py
+# API available at: http://localhost:8000
+# Docs available at: http://localhost:8000/docs
+```
+
+### 4. Open API Documentation
+```bash
+# Open API docs in your browser
+"$BROWSER" "http://localhost:8000/docs"
+```
+
+## 🐳 Docker Compose Services
+
+Your environment includes these services:
+
+```yaml
+services:
+  dev_env:           # Your current dev container
+    ports:
+      - "8000:8000"  # FastAPI API server
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/cloudculate
+    
+  mongodb:           # MongoDB database
+    ports: 
+      - "27017:27017" # MongoDB connection
+    volumes:
+      - mongo_data:/data/db  # Persistent storage
+```
+
+### Managing Services
 
 ```bash
-# Scrape specific services and regions (as requested)
-python scrape_cli.py --service ec2 --service s3 --region eu-west-1 --region us-east-1
+# View running services
+docker-compose ps
 
+# Start MongoDB if stopped
+docker-compose up -d mongodb
+
+# View MongoDB logs
+docker-compose logs mongodb
+
+# Stop all services (from host)
+docker-compose down
+
+# Reset MongoDB data (WARNING: destroys all data)
+docker-compose down -v
+docker volume rm $(docker volume ls -q | grep mongo_data)
+```
+
+## 💻 Command Line Usage
+
+### Basic Scraping Commands
+
+```bash
 # Scrape all services in specific regions
-python scrape_cli.py --region eu-west-1 --region us-east-1
+python3 scrape_cli_mongo.py scrape --regions us-east-1,eu-west-1
 
-# Scrape everything (all services, all regions)
-python scrape_cli.py
+# Scrape specific services
+python3 scrape_cli_mongo.py scrape --services ec2,s3,rds --regions us-east-1
 
+# Scrape with specific AWS profile (if you have multiple profiles)
+python3 scrape_cli_mongo.py scrape --profile production --regions us-east-1
+```
+
+### Querying and Management
+
+```bash
 # List all scrapes
-python scrape_cli.py --list
+python3 scrape_cli_mongo.py list
 
-# Get scrape details
-python scrape_cli.py --details scrape_20250806_143022_abc12345
+# List only successful scrapes
+python3 scrape_cli_mongo.py list --success-only
+
+# Show detailed scrape information
+python3 scrape_cli_mongo.py show scrape_20250809_173531_f4a5f77d
+
+# Query resources from a scrape
+python3 scrape_cli_mongo.py query --scrape-id scrape_20250809_173531_f4a5f77d --region us-east-1
+
+# Filter by specific service and region
+python3 scrape_cli_mongo.py query --scrape-id scrape_20250809_173531_f4a5f77d --service ec2 --region us-east-1
+
+# Get system statistics
+python3 scrape_cli_mongo.py stats
+
+# Delete a scrape and all its resources
+python3 scrape_cli_mongo.py delete scrape_20250809_173531_f4a5f77d --force
 ```
 
-### 3. Web Dashboard
+### Output Formats
 
 ```bash
-# Start the web server
-python scraper_api.py
-
-# Access dashboard at:
-# http://localhost:8000
+# Get JSON output for programmatic use
+python3 scrape_cli_mongo.py list --json
+python3 scrape_cli_mongo.py stats --json
+python3 scrape_cli_mongo.py query --scrape-id <id> --json
 ```
 
-## 📂 Directory Structure
+## 🌐 REST API Usage
 
-After running scrapes, your directory will look like:
-
-```
-aws-inventory/
-├── scrapes/
-│   ├── scrape_20250806_143022_abc12345/
-│   │   ├── scrape_metadata.json
-│   │   ├── ec2_DescribeInstances_eu-west-1_None.json
-│   │   ├── s3_ListBuckets_None_None.json
-│   │   └── ... (all scraped AWS data)
-│   └── scrape_20250806_144530_def67890/
-├── logs/
-│   ├── scrape_20250806_143022_abc12345/
-│   │   ├── stdout.log
-│   │   └── stderr.log
-│   └── scrape_20250806_144530_def67890/
-└── status/
-    ├── scrape_20250806_143022_abc12345/
-    │   ├── success          # (empty file = success)
-    │   └── metadata.json
-    └── scrape_20250806_144530_def67890/
-        ├── fail            # (empty file = failure)
-        └── metadata.json
-```
-
-## 🔧 Command Examples
-
-### CLI Usage
+### Starting a Scrape
 
 ```bash
-# Basic scraping (mimics your requested command)
-python scrape_cli.py --service ec2 --service s3 --region eu-west-1 --region us-east-1
-
-# Advanced usage
-python scrape_cli.py --service lambda --service dynamodb --region us-west-2 --profile production
-
-# Management commands
-python scrape_cli.py --list                    # List all scrapes
-python scrape_cli.py --list-successful         # List only successful
-python scrape_cli.py --list-failed             # List only failed
-python scrape_cli.py --cleanup 7               # Clean scrapes older than 7 days
-
-# Output options
-python scrape_cli.py --list --json             # JSON output
-python scrape_cli.py --service ec2 --quiet     # Minimal output
-```
-
-### API Usage
-
-```bash
-# Start a scrape
-curl -X POST "http://localhost:8000/api/scrapes/start" \
+# Start a comprehensive scrape
+curl -X POST "http://localhost:8000/api/scrapes" \
   -H "Content-Type: application/json" \
   -d '{
-    "services": ["ec2", "s3"],
-    "regions": ["eu-west-1", "us-east-1"]
+    "services": ["ec2", "s3", "rds"],
+    "regions": ["us-east-1", "eu-west-1"],
+    "profile": "default"
   }'
 
-# List all scrapes
-curl "http://localhost:8000/api/scrapes"
-
-# Get scrape details
-curl "http://localhost:8000/api/scrapes/scrape_20250806_143022_abc12345"
-
-# Download a specific file
-curl "http://localhost:8000/api/scrapes/scrape_20250806_143022_abc12345/download/ec2_DescribeInstances_eu-west-1_None.json"
-
-# Get scrape logs
-curl "http://localhost:8000/api/scrapes/scrape_20250806_143022_abc12345/logs"
+# Response:
+# {
+#   "scrape_id": "scrape_20250809_173531_f4a5f77d",
+#   "success": true,
+#   "duration_seconds": 125.5,
+#   "files_processed": 15,
+#   "message": "Scrape completed successfully"
+# }
 ```
 
-## 📊 Web Dashboard Features
+### Querying Data
 
-### Main Dashboard
-- **Statistics overview**: Total scrapes, success rate, files scraped
-- **Recent scrapes**: Last 10 scrapes with status
-- **Quick actions**: Start new scrape, refresh data
-- **Auto-refresh**: Updates every 30 seconds
+```bash
+# List all scrapes
+curl "http://localhost:8000/api/scrapes?limit=10"
 
-### Scrape Management
-- **Interactive scrape creation**: Enter services and regions via prompts
-- **Detailed scrape views**: Click any scrape for full details
-- **File downloads**: Direct download links for scraped files
-- **Log viewing**: stdout/stderr logs accessible via web
+# Get scrape details
+curl "http://localhost:8000/api/scrapes/scrape_20250809_173531_f4a5f77d"
 
-## 🔍 Data Format
+# Query resources with filtering
+curl "http://localhost:8000/api/scrapes/scrape_20250809_173531_f4a5f77d/resources?service=ec2&region=us-east-1"
 
-### Scrape Metadata
-Each scrape creates a `scrape_metadata.json` file:
+# Compare resources across scrapes
+curl "http://localhost:8000/api/resources/compare?service=ec2&region=us-east-1&operation=DescribeInstances&limit=5"
 
+# Get system statistics
+curl "http://localhost:8000/api/stats"
+
+# Get service-specific statistics
+curl "http://localhost:8000/api/stats/services"
+```
+
+### Interactive API Documentation
+
+The FastAPI server provides interactive documentation:
+
+```bash
+# Open API documentation in your browser
+"$BROWSER" "http://localhost:8000/docs"
+
+# Alternative documentation format
+"$BROWSER" "http://localhost:8000/redoc"
+```
+
+## 📊 Data Structure
+
+### MongoDB Collections
+
+The system uses two main collections in the `cloudculate` database:
+
+#### `scrapes` Collection
+Stores metadata about each scraping operation:
 ```json
 {
-  "scrape_id": "scrape_20250806_143022_abc12345",
-  "start_time": "2025-08-06T14:30:22.123Z",
-  "end_time": "2025-08-06T14:32:45.456Z", 
-  "duration_seconds": 143.33,
+  "scrape_id": "scrape_20250809_173531_f4a5f77d",
+  "start_time": "2025-08-09T17:35:31.277Z",
+  "end_time": "2025-08-09T17:37:37.533Z",
   "success": true,
-  "return_code": 0,
-  "command": ["aws-list-all", "query", "--directory", "...", "--service", "ec2"],
   "services": ["ec2", "s3"],
-  "regions": ["eu-west-1", "us-east-1"],
-  "profile": null,
-  "scraped_files_count": 25,
-  "scrape_directory": "/path/to/scrapes/scrape_20250806_143022_abc12345",
-  "log_directory": "/path/to/logs/scrape_20250806_143022_abc12345",
-  "status_directory": "/path/to/status/scrape_20250806_143022_abc12345"
+  "regions": ["us-east-1", "eu-west-1"],
+  "files_processed_to_mongo": 15,
+  "total_resources_saved": 15
 }
 ```
 
-### Status Tracking
-- **Success indicator**: Empty `success` file in status directory
-- **Failure indicator**: Empty `fail` file in status directory  
-- **Logs**: Separate `stdout.log` and `stderr.log` files
-- **Metadata**: Duplicate metadata in status directory for quick access
-
-## 🛠️ Advanced Usage
-
-### Custom Directory Structure
-```bash
-python scrape_cli.py --directory /custom/path --service ec2
+#### `aws_resources` Collection
+Stores individual AWS service responses:
+```json
+{
+  "scrape_id": "scrape_20250809_173531_f4a5f77d",
+  "service": "ec2",
+  "region": "us-east-1",
+  "operation": "DescribeInstances",
+  "source_filename": "ec2_DescribeInstances_us-east-1_None.json",
+  "response": {
+    "Instances": [...],
+    "ResponseMetadata": {...}
+  }
+}
 ```
 
-### Profile Management
+## 🔍 Advanced Querying
+
+### MongoDB Direct Access
+
+Connect directly to the MongoDB container for advanced analysis:
+
 ```bash
-python scrape_cli.py --profile production --service ec2
-python scrape_cli.py --profile staging --region us-west-2
+# Connect to MongoDB from the dev container
+mongosh mongodb://mongodb:27017/cloudculate
+
+# Or using docker-compose
+docker-compose exec mongodb mongosh cloudculate
 ```
 
-### Automation Examples
-```bash
-# Daily production scrape
-0 2 * * * /usr/bin/python /app/scrape_cli.py --profile production --quiet
+### MongoDB Queries
 
-# Weekly full inventory
-0 0 * * 0 /usr/bin/python /app/scrape_cli.py --quiet
+```javascript
+// Find all resources for a specific service
+db.aws_resources.find({"service": "ec2"}).limit(5)
 
-# Cleanup old scrapes monthly
-0 0 1 * * /usr/bin/python /app/scrape_cli.py --cleanup 30 --quiet
+// Count resources by service
+db.aws_resources.aggregate([
+  {"$group": {"_id": "$service", "count": {"$sum": 1}}},
+  {"$sort": {"count": -1}}
+])
+
+// Find latest scrapes
+db.scrapes.find().sort({"start_time": -1}).limit(10)
+
+// Compare resource counts across scrapes
+db.aws_resources.aggregate([
+  {"$group": {
+    "_id": {"scrape_id": "$scrape_id", "service": "$service"},
+    "count": {"$sum": 1}
+  }},
+  {"$sort": {"_id.scrape_id": -1}}
+])
 ```
 
-### Integration with Other Tools
+### Python Integration
+
 ```python
 from aws_scraper import AWSArchitectureScraper
 
-# Programmatic usage
-scraper = AWSArchitectureScraper("/custom/directory")
+# Initialize scraper (uses docker-compose MongoDB connection)
+scraper = AWSArchitectureScraper("mongodb://mongodb:27017/cloudculate")
 
-# Start scrape
+# Start a scrape
 result = scraper.scrape_aws_architecture(
-    services=["ec2", "rds"],
-    regions=["us-east-1"],
-    profile="production"
+    services=["ec2", "s3"],
+    regions=["us-east-1"]
 )
 
-# Check results
-if result['success']:
-    print(f"Scraped {result['scraped_files_count']} files")
-else:
-    print(f"Scrape failed: {result.get('error')}")
+# Query resources
+resources = scraper.query_resources(
+    scrape_id=result["scrape_id"],
+    service="ec2",
+    region="us-east-1"
+)
 
-# List all scrapes
-scrapes = scraper.list_scrapes()
-successful = scraper.get_successful_scrapes()
-failed = scraper.get_failed_scrapes()
+# Get statistics
+stats = scraper.get_stats()
+print(f"Total scrapes: {stats['total_scrapes']}")
 ```
 
-## 📈 Monitoring & Analytics
+## 🛠️ Configuration
 
-### Success Rate Tracking
-The system automatically tracks:
-- Total scrapes attempted
-- Success/failure rates
-- Files scraped per operation
-- Duration statistics
-- Error patterns
+### Environment Variables
 
-### Log Analysis
-Each scrape captures:
-- **stdout**: Normal aws-list-all output
-- **stderr**: Error messages and warnings
-- **Return codes**: Process exit status
-- **Command executed**: Full command with parameters
+The dev container is configured with these environment variables:
 
-### Cleanup & Maintenance
 ```bash
-# Clean old scrapes (keeps 30 days by default)
-python scrape_cli.py --cleanup
+# MongoDB connection (pre-configured)
+MONGO_URI=mongodb://mongodb:27017/cloudculate
 
-# Custom cleanup period
-python scrape_cli.py --cleanup 7    # Keep 7 days
+# You can override with:
+export MONGODB_CONNECTION_STRING="mongodb://mongodb:27017/cloudculate"
+export MONGODB_DATABASE_NAME="cloudculate"
 
-# API endpoint for cleanup
-curl -X POST "http://localhost:8000/api/scrapes/cleanup?days=14"
+# AWS Configuration (already mounted from host)
+# AWS_PROFILE is read from your host ~/.aws/config
 ```
 
-## 🔒 Security Considerations
+### Custom MongoDB Connection
 
-### AWS Credentials
-- Uses standard AWS credential chain
-- Supports AWS profiles for multi-account access
-- No credentials stored in application
+```python
+# Use the docker-compose MongoDB service
+scraper = AWSArchitectureScraper("mongodb://mongodb:27017/cloudculate")
 
-### File Permissions
-- Scraped data inherits directory permissions
-- Log files readable by application user only
-- Status files used for quick checks without parsing JSON
+# For external MongoDB
+scraper = AWSArchitectureScraper("mongodb://external-host:27017/aws_scraper")
+```
 
-### API Security
-- Currently no authentication (suitable for internal use)
-- Consider adding authentication for production deployments
-- CORS disabled by default
-
-## 🐛 Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
-1. **aws-list-all not found**
-   ```bash
-   pip install aws-list-all
-   ```
-
-2. **AWS credentials not configured**
-   ```bash
-   aws configure
-   # or
-   export AWS_ACCESS_KEY_ID=...
-   export AWS_SECRET_ACCESS_KEY=...
-   ```
-
-3. **Permission errors**
-   ```bash
-   # Ensure directory is writable
-   chmod 755 ./aws-inventory
-   ```
-
-4. **Scrape timeouts**
-   - Default timeout is 1 hour
-   - Large accounts may need longer
-   - Check logs for specific service issues
-
-### Debug Mode
+**1. MongoDB Connection Failed**
 ```bash
-# Verbose logging
-python scrape_cli.py --service ec2 --region us-east-1 2>&1 | tee debug.log
+# Check MongoDB container status
+docker-compose ps mongodb
 
-# Check individual scrape logs
-cat aws-inventory/logs/scrape_*/stderr.log
+# Start MongoDB if stopped
+docker-compose up -d mongodb
+
+# Check MongoDB logs
+docker-compose logs mongodb
+
+# Test connection from dev container
+mongosh mongodb://mongodb:27017/cloudculate --eval "db.runCommand('ping').ok"
 ```
 
-## 🚀 Deployment
-
-### Local Development
+**2. AWS Credentials Not Working**
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-pip install aws-list-all
+# Check mounted AWS credentials
+ls -la /root/.aws/
+cat /root/.aws/credentials
+cat /root/.aws/config
 
-# Start API server
-python scraper_api.py
+# Test AWS access
+aws sts get-caller-identity
 
-# Run scrapes
-python scrape_cli.py --service ec2
+# If credentials missing, they need to be on your host at:
+# ~/.aws/credentials_read_only
+# ~/.aws/config
 ```
 
-### Production Deployment
+**3. aws-list-all Issues**
 ```bash
-# Use systemd service
-sudo cp scraper.service /etc/systemd/system/
-sudo systemctl enable scraper
-sudo systemctl start scraper
+# Verify aws-list-all is installed (should be pre-installed)
+aws-list-all --help
 
-# Or use Docker
-docker build -t aws-scraper .
-docker run -d -p 8000:8000 -v ./aws-inventory:/app/aws-inventory aws-scraper
+# Test with a simple command
+aws-list-all query --service sts --region us-east-1
 ```
-// ...existing code...
 
-## Testing
+**4. API Server Issues**
+```bash
+# Check if port 8000 is available
+netstat -tlnp | grep :8000
 
-This project uses **pytest** as the primary testing framework for comprehensive test coverage of the AWS scraper functionality.
+# Kill existing processes
+pkill -f "scraper_api_mongo"
 
-### Test Structure
+# Start with different port
+python3 scraper_api_mongo.py --port 8001
 
+# Or use uvicorn directly
+uvicorn scraper_api_mongo:app --host 0.0.0.0 --port 8000
 ```
-backend/tests/
-├── __init__.py
-├── test_aws_scraper.py      # Core scraper logic tests
-├── test_scrape_cli.py       # CLI interface tests (currently skipped)
-├── test_scraper_api.py      # FastAPI endpoint tests
-└── test_hello_world.py      # Basic functionality tests
+
+**5. File Permissions Issues**
+```bash
+# Check temp directory permissions
+ls -la /tmp/
+
+# Clear old temp directories
+rm -rf /tmp/scrape_*
+
+# Create temp directory if needed
+mkdir -p /tmp && chmod 755 /tmp
 ```
+
+### Logging and Debugging
+
+```bash
+# Enable debug logging
+export PYTHONPATH="/app/backend:$PYTHONPATH"
+python3 -c "
+import logging
+logging.basicConfig(level=logging.DEBUG)
+from aws_scraper import AWSArchitectureScraper
+scraper = AWSArchitectureScraper('mongodb://mongodb:27017/cloudculate')
+print(scraper.get_stats())
+"
+
+# Test API endpoints
+python3 test_mongo_api.py
+
+# Check MongoDB collections directly
+docker-compose exec mongodb mongosh cloudculate --eval "
+  print('Scrapes:', db.scrapes.countDocuments({}));
+  print('Resources:', db.aws_resources.countDocuments({}));
+"
+```
+
+### Performance Optimization
+
+**For Large Environments:**
+```bash
+# Increase timeout for large scrapes
+export FILE_WATCHER_TIMEOUT="300"  # 5 minutes
+
+# Use specific services instead of "all"
+python3 scrape_cli_mongo.py scrape --services ec2,s3,rds --regions us-east-1
+
+# Monitor MongoDB performance
+docker-compose exec mongodb mongosh cloudculate --eval "db.stats()"
+```
+
+## 📈 Monitoring and Analytics
+
+### Built-in Statistics
+
+```bash
+# Get comprehensive statistics
+python3 scrape_cli_mongo.py stats
+
+# API endpoint for statistics
+curl "http://localhost:8000/api/stats"
+
+# Service-specific analytics
+curl "http://localhost:8000/api/stats/services"
+
+# Regional analytics
+curl "http://localhost:8000/api/stats/regions"
+
+# Timeline analysis
+curl "http://localhost:8000/api/stats/timeline?days=30"
+```
+
+### MongoDB Monitoring
+
+```bash
+# Monitor MongoDB from another terminal
+docker-compose exec mongodb mongotop
+
+# Check MongoDB logs
+docker-compose logs -f mongodb
+
+# MongoDB performance stats
+docker-compose exec mongodb mongosh cloudculate --eval "
+  db.runCommand({serverStatus: 1}).metrics
+"
+```
+
+### Custom Analytics
+
+Use MongoDB aggregation for custom analysis:
+
+```javascript
+// Resource growth over time
+db.aws_resources.aggregate([
+  {"$group": {
+    "_id": {
+      "year": {"$year": "$scrape_timestamp"},
+      "month": {"$month": "$scrape_timestamp"}
+    },
+    "total_resources": {"$sum": 1}
+  }},
+  {"$sort": {"_id": 1}}
+])
+
+// Most active regions
+db.aws_resources.aggregate([
+  {"$group": {"_id": "$region", "count": {"$sum": 1}}},
+  {"$sort": {"count": -1}},
+  {"$limit": 10}
+])
+```
+
+## 🧪 Development and Testing
 
 ### Running Tests
-
-#### Basic Test Execution
 ```bash
-# Run all tests
-cd backend
-python -m pytest
+# Run comprehensive API tests
+python3 test_mongo_api.py
 
-# Run tests with verbose output
-python -m pytest -v
+# Test individual components
+cd /app/backend
+python3 -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/test_scraper_api.py
-
-# Run specific test function
-python -m pytest tests/test_scraper_api.py::test_list_scrapes
+# Test with different configurations
+MONGODB_CONNECTION_STRING="mongodb://mongodb:27017/test_db" python3 test_mongo_api.py
 ```
 
-#### Test Coverage
+### Development Workflow
 ```bash
-# Run tests with coverage report
-python -m pytest --cov=. --cov-report=term-missing
+# Make code changes in VS Code
+# The /app volume is mounted, so changes are immediately available
 
-# Generate HTML coverage report
-python -m pytest --cov=. --cov-report=html
-# Open coverage report in browser
-"$BROWSER" htmlcov/index.html
+# Restart API server to pick up changes
+pkill -f "scraper_api_mongo" && python3 scraper_api_mongo.py &
+
+# Or use uvicorn with auto-reload
+uvicorn scraper_api_mongo:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### Test Categories
+### Database Management
 ```bash
-# Run only fast tests (exclude slow AWS integration tests)
-python -m pytest -m "not slow"
+# Reset database for testing
+docker-compose exec mongodb mongosh cloudculate --eval "db.dropDatabase()"
 
-# Run only API tests
-python -m pytest tests/test_scraper_api.py
+# Create fresh indexes
+python3 -c "
+from aws_scraper import AWSArchitectureScraper
+scraper = AWSArchitectureScraper('mongodb://mongodb:27017/cloudculate')
+scraper.mongo_manager.create_indexes()
+scraper.close()
+"
 
-# Run tests matching pattern
-python -m pytest -k "api"
+# Backup database
+docker-compose exec mongodb mongodump --db cloudculate --out /tmp/backup
+docker-compose cp mongodb:/tmp/backup ./mongodb_backup
 ```
 
-### Test Configuration
+## 📝 Architecture Documentation
 
-The project includes `pytest.ini` configuration for consistent test execution:
-- Automatic test discovery
-- Coverage reporting setup
-- Custom markers for test categorization
-- Output formatting preferences
+For detailed technical information about the system architecture, database schema, and internal components, see:
+- [`design.md`](design.md) - Complete technical design document
 
-### Development Testing
+## 📜 License
 
-For development in the Debian dev container:
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-```bash
-# Install test dependencies
-pip install -r requirements-dev.txt
+## 🤝 Support
 
-# Run tests with file watching (requires pytest-watch)
-ptw
+For issues, questions, or contributions:
+1. Check the troubleshooting section above
+2. Review the technical design document ([`design.md`](design.md))
+3. Test your setup with: `python3 test_mongo_api.py`
+4. Check service status with: `docker-compose ps`
+5. View logs with: `docker-compose logs mongodb` or `docker-compose logs dev_env`
 
-# Run tests in parallel (requires pytest-xdist)
-python -m pytest -n auto
-```
+---
 
-### Test Categories
-
-- **Unit Tests**: Test individual functions and classes
-- **Integration Tests**: Test component interactions
-- **API Tests**: Test FastAPI endpoints using httpx
-- **CLI Tests**: Test command-line interface (currently skipped for AWS functionality)
-
-### Continuous Integration
-
-Tests are designed to run in CI/CD pipelines with proper mocking of AWS services to avoid actual AWS API calls during
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
-## 📞 Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review logs in `aws-inventory/logs/`
-3. Check AWS credentials and permissions
-4. Verify aws-list-all installation
+**Happy Cloud Architecture Scraping from your Dev Container! 🚀☁️🐳**

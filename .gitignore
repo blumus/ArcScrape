@@ -1,3 +1,4 @@
 *.pyc
 backend/config
 aws-inventory/
+.DS_Store

@@ -1,13 +1,25 @@
-# backend/requirements.txt
+# Core dependencies
 fastapi
 uvicorn[standard]
-pymongo # For MongoDB interaction
-python-dotenv # For loading environment variables (optional but good practice)
-boto3 # For AWS S3 interaction
+pymongo
+pydantic
+watchdog
 
-# Additional utilities
-pandas  # For data analysis (optional)
-tabulate  # For pretty table printing
+# AWS integration
+boto3
+botocore
 
-# NOTE pkg_resources is used by setuptools, is being deprecated
-setuptools # For packaging and distribution 
+# Utilities
+python-dotenv
+python-multipart
+python-jose[cryptography]
+pandas
+tabulate
+
+# Development dependencies
+pytest
+pytest-asyncio
+httpx
+
+# Packaging and distribution
+setuptools

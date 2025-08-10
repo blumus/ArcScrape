@@ -13,7 +13,26 @@ RUN apt update && apt install -y \
      iputils-ping \
      netcat-traditional \
      telnet \
+     curl \
+     unzip \
      && rm -rf /var/lib/apt/lists/*
+
+# Install AWS CLI with architecture detection
+RUN ARCH=$(dpkg --print-architecture) && \
+    echo "Detected architecture: $ARCH" && \
+    if [ "$ARCH" = "amd64" ]; then \
+        AWS_CLI_ARCH="x86_64"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        AWS_CLI_ARCH="aarch64"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    echo "Installing AWS CLI for $AWS_CLI_ARCH" && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_CLI_ARCH}.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf aws awscliv2.zip && \
+    aws --version
 
 # Copy the requirements file into the container
 COPY backend/requirements.txt backend/requirements-dev.txt ./
